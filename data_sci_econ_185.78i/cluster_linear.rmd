@@ -1,0 +1,123 @@
+---
+title: "The Relationship of Commercial Banks' Return on Assets and Capital with its Return on Equity: The Case of Europe and Central Asia"
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+setwd("~/Desktop/R/Quiz")
+
+library(tidyverse)
+library(ggdendro)
+library(wooldridge)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Dataset:
+
+```{r message = FALSE}
+GFDD <- read_csv("GFDD-0822.csv") %>%
+  filter(region=="Europe & Central Asia")
+
+bank_data <- GFDD %>% select(matches("country|year|ei06|ei05|si03")) %>%
+  filter(year == 2018) %>%
+  drop_na() %>%
+  rename(
+    ROA=ei05,
+    ROE=ei06,
+    CapitaltoAssets=si03
+  )
+
+bank_data
+```
+
+This dataset comes from the World Bank's Global Financial Development Database as of August 2022 that provides a comprehensive repository of financial indicators worldwide.
+
+-   References:
+    -   <https://www.worldbank.org/en/publication/gfdr/data/global-financial-development-database>
+-   Key variables include `country` `income`, `year`, Bank return on equity (%, after tax) [`ei06`], and Bank capital to total assets (%) [`si03`].
+    -   `ei06` measures the ratio of the aggregate post-tax net income of commercial banks against the aggregate annual average equity of commercial banks in the country. It is then renamed to `ROE` for clarity.
+    -   `ei05` represents the banks' return on assets after taxes calculated as the ratio of after-tax net income to their aggregate yearly averaged total assets. This variable is then renamed to `ROA` for clarity.
+    -   `si03` represents the ratio of banks' total reserves and capital (which includes funds contributed by owners, retained earnings, general and special reserves, provisions, and valuation adjustments) and the total assets of banks. This variable is also renamed to `CapitaltoAssets`.
+    -   ei06, ei05, and si03 are expressed in percentages, where the first two variables' values may range from -100 to 100, while the latter would only range from 0 to 100 due to central banks' reserve requirements.
+
+**Questions:** 
+*What impact does a bank's capital and return on assets have on its return on equity in Europe and Central Asia?* 
+*How does this impact vary through across countries in the region?*
+
+**Introduction:** 
+This dataset comes from the World Bank's Global Financial Development Database that provides a comprehensive repository of financial indicators across the globe which was published last September 2022. As mentioned already, the key variables are `country`, `year`, banks' return on equity (%, after tax) [`ROE`], return on assets (%, after tax) [`ROA`], banks' capital to total assets (`CapitaltoAssets`). While the dataset is originally in panel form, it was filtered to only show the data as of 2018 to not have to take into account the COVID-19 pandemic's effect on this relationship and to make it more appropriate for the multiple linear regression to be conducted. 
+
+These variables were chosen because of their theoretical relationship to one another. A bank's ROE should have a negative relationship with the bank's capital since it is calculated as the the net profit after taxes divided by the bank's equity. An alternative form of ROE would be as the product of the bank's ROA and its Equity Multiplier, supposing a positive relationship between its ROA and ROE.
+
+**Approach:** 
+These research questions are investigated through multiple linear regression and cluster analysis for the year 2018. The multiple linear regression model will provide estimates of the impact of banks' return on assets and capital on its return on equity while controlling for one another. Meanwhile, the cluster analysis will identify groups within the dataset, which would shed light on potential relationships or similarities of countries' commercial banks' management.
+
+**Analysis:**
+
+```{r mlrm}
+# Multiple Linear Regression Model
+regression <- lm(ROE ~ ROA+CapitaltoAssets, data=bank_data)
+summary(regression)
+```
+
+```{r cluster}
+#Cluster Analysis
+clustermap <- bank_data %>%
+  column_to_rownames(var = "country") %>%
+  scale() %>%
+  dist(method = "euclidean")
+
+hc_out <- hclust(clustermap, method = "ward.D2")
+
+cluster <- ggdendrogram(hc_out, rotate = TRUE) +
+  theme(axis.text.y = element_text(size = 8))
+
+#Displaying basic cluster analysis
+plot(cluster)
+
+#Making the clusters more visible
+dendro_data <- dendro_data(hc_out)
+segments <- dendro_data$segments
+labels <- dendro_data$labels
+
+k <- 5
+clusters <- cutree(hc_out, k)
+bank_data$cluster <- factor(clusters[row.names(bank_data)], levels = 1:k)
+labels$cluster <- as.factor(clusters[labels$label])
+cluster_colors <- scale_color_manual(values = c("#4285F4", 
+                                                "#F4B400", 
+                                                "#0F9D58", 
+                                                "#AB47BC", 
+                                                "#FF7043"))
+
+#Plotting the newer dendrogram 
+gg_dendro <- ggplot() +
+  geom_segment(data = segments, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = labels, aes(x = x, y = -0.1, label = label, color = cluster),
+            size = 4.7/.pt, hjust = 1.001, vjust = 0.5, angle = 0) + 
+  cluster_colors +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    panel.grid = element_blank() 
+  ) +
+  coord_flip() +
+  scale_y_continuous(limits = c(-2, 13.5))
+plot(gg_dendro)
+```
+
+**Discussion:** 
+
+In the multiple linear regression model, the explanatory variables are statistically significant at the 1% level, meaning that we can say with 99% confidence that the effect of European and Central Asian banks' ROA and Capital have a nonzero effect on its ROE holding all else constant. Specifically, when we look at their estimated coefficients, we may say that a 1% increase in commercial banks' ROA leads to a 8.05% increase in its ROE holding all else equal. This finding falls in line with our expected outcome between ROA and ROE. Meanwhile, commercial banks' Capital has a smaller yet negative effect on its ROE, specifically, a 1% increase in the Capital to Assets Ratio would entail a 0.62% decrease in its ROE, ceteris paribus. So from these findings, we may conclude that a bank's ROA has a greater positive impact on its ROE compared to its Capital to Assets ratio which has a negative yet smaller effect on the ROE.
+
+Meanwhile, the cluster analysis reveals 5 distinct groups: 
+1. {Moldova, Belarus, Kazakhstan, Georgia}
+2. {North Macedonia, Bulgaria, Russian Federation, Romania, Ukraine, Turkey, Slovenia, Lithuania, Estonia}
+3. {Latvia, Bosnia and Herzegovina, Uzbekistan, Slovak Republic, Croatia, Armenia, Iceland, Ireland}
+4. {Poland, Finland, Albania, Greece, Luxembourg, Spain, Italy, United Kingdom, Switzerland, France, Portugal, Germany}
+5. {Sweden, Belgium, Czech Republic, Netherlands, Denmark, Cyprus, Austria}
+
+These clusters represent groups of countries that share similarities and patterns in their bank management practices and policies. These could be a result of the common economic conditions, levels of development or even regulatory frameworks set in place with respect to bank management.

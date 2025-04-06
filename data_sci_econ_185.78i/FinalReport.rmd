@@ -1,0 +1,177 @@
+---
+ECON 185.78i-U
+
+Title: "A Philippine study: The effect of educational attainment on healthcare expenditure in Filipino households for the year 2018" 
+---
+  
+Research Question: 
+  What is the effect of educational attainment on healthcare expenditure?
+
+Introduction and Literature Review:
+  Health and education are fundamental to improving a person’s well-being. They are not just necessary to an individual’s development, but also to all of society. With this, we plan to focus on the intersection between education and health in order to understand their relationship and roles in addressing the crises or simply improving people’s well-being. Studies have shown that higher levels of education are associated with better health and life spans compared to those who are less educated (Raghupathi & Raghupathi, 2020). Additionally, similar relationship is also observed in different countries like USA, Nigeria, and India (Monheit and Grafova, 2018; Ogundari and Abdulai, 2004;  Rout, 1999).
+  
+Methodology:
+  The study will be using a multiple linear regression to assess the effects of household head's highest grade completed on total health expenditure. Accordingly, we will use the Family Income and Expenditure Survey for the year 2018. Other control variables are also included namely family size, sex of household head, age of household head, household income, urbanity, and family with members aged less than 5 years old.
+  
+  Specifically, through data wrangling and cleaning, the following data from FIES will be used.
+Dependent variable: Household Healthcare Expenditure (THEALTH)
+Independent variable: Highest Grade Completed of Household Head (HGC)
+Controls: Family size (MEMBERS), Sex of Household Head (SEX), Age of Household Head (AGE), Household Income (TOINC), Urbanity (URBAN), and Members or Families with age less than 5 years old (AGELESS5)
+
+Descriptive Statistics:
+  As we visualize all of the variables in our study, we find that the typical household would have a household head whose educational attainment would be a high school graduate and below since it is far more numerous than the higher intervals of educational attainment like having completed college and above or being a post-secondary undergraduate. Meanwhile, we also find a similarly, but more extremely, skewed distribution for our dependent variable, the mean total health expenditure per household would be ₱5,876 but it can get as large as ₱1,531,003. For the controlled variables, we look at the total income of the household and family size, we see that income has a positive relationship with the educational attainment of the household head where the household's total income typically rises as a result of higher education. Family size is within expectations since it peaks at around 3-5 members, skewing to the left while we see that there also are outliers here where families may get as large as 22 members.
+
+Codes:
+
+```{r setup, include=FALSE}
+
+# CLEANING R AND LOADING NECESSARY PACKAGES 
+# rm(list = ls())
+# Set the working directory
+setwd("~/Desktop/Final Report")
+
+# Load the packages that may be useful
+library(tidyverse)
+library(tidymodels)
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+
+# LOADING THE CSV DATASET
+# Load the dataset from PSA
+FIES <- read.csv("2018_FIES_vol2.csv")
+
+```
+
+```{r }
+
+# SET UP THE NECESSARY VARIABLES
+# Make a dataframe with needed variables
+FIES_subset <- FIES[, c("THEALTH", "HGC", "MEMBERS", "SEX", "AGE", "TOINC", "URB", "AGELESS5")]
+
+# Set the values of variable HGC into intervals
+if ('HGC' %in% colnames(FIES_subset)) {
+  FIES_subset2 <- FIES_subset %>%
+    mutate(HGC = case_when(
+      HGC >= 0 & HGC <= 35013 ~ 1, # Compete HS and below
+      (HGC >= 40001 & HGC <= 40003) | (HGC >= 49999 & HGC <= 50003) ~ 2, # 2 Incomplete post-secondary
+      (HGC >= 40010 & HGC <= 41099) | (HGC >= 50010 & HGC <= 51099) ~ 3, # 3 Complete post- secondary
+      HGC >= 60001 & HGC <= 60010 ~ 4, # 4 Incomplete college
+      HGC == 60000 | (HGC >= 60011 & HGC <= 82000) ~ 5, #Complete college and above
+      TRUE ~ HGC  # if none of the conditions match, keep the original value
+    ))
+} else {
+  cat("Column 'HGC' not found in the data frame.\n")
+}
+
+# Set the variable URB as 'urban' and label 1 for urban and 0 for rural
+colnames(FIES_subset2)[colnames(FIES_subset2) == "URB"] <- "URBAN"
+FIES_subset2 <- FIES_subset2 %>%
+  mutate(URBAN = ifelse(URBAN == "1", 1, ifelse(URBAN == "2", 0, URBAN)))
+
+# Set the values of the SEX variable into 1 if male and 0 for female
+FIES_subset2 <- FIES_subset2 %>%
+  mutate(SEX = ifelse(SEX == "1", 1, ifelse(SEX == "2", 0, SEX)))
+
+# Set the values of the AGELESS5 variable into 1 if there is a 5 year old in the family and 0 if none
+FIES_subset2 <- FIES_subset2 %>%
+  mutate(AGELESS5 = ifelse(AGELESS5 >= 1 & AGELESS5 <= 5, 1, 0))
+
+```
+```{r}
+
+# DATA VISUALIZATION FOR DESCRIPTIVE STATISTICS
+# Bar plot for the variable "SEX"
+sex_counts <- table(FIES_subset2$SEX)
+options(scipen = 999) # Modify scipen option to prevent scientific notation
+barplot(sex_counts, col = c("pink", "blue"), 
+        main = "Distribution of Sex", xlab = "Sex", ylab = "Count",
+        names.arg = c("Female", "Male"))
+
+# Bar plot for the variable "MEMBERS" or family size
+members_counts <- table(FIES_subset2$MEMBERS)
+barplot(members_counts, col = "skyblue", 
+        main = "Distribution of Family Size", xlab = "Number of Members", ylab = "Count",
+        names.arg = levels(FIES_subset2$MEMBERS))
+
+# Bar plot for the variable "AGE" with intervals
+age_intervals <- cut(FIES_subset2$AGE, breaks = seq(0, 100, by = 10), include.lowest = TRUE)
+age_interval_counts <- table(age_intervals)
+barplot(age_interval_counts, col = "lightgreen",
+        main = "Distribution of Age Intervals", xlab = "Age Intervals", ylab = "Count",
+        names.arg = c("1-10", "11-20", "21-30", "31-40", "41-50", "51-60", "61-70", "71-80", "81-90", "91-100"))
+
+# Bar plot for the variable "TOINC"
+average_toinc <- aggregate(TOINC ~ HGC, data = FIES_subset2, FUN = mean)
+bar_colors <- c("skyblue", "salmon", "palegreen", "orchid", "gold")
+barplot(average_toinc$TOINC, names.arg = average_toinc$HGC,
+        col = bar_colors, main = "Average Household Income by Education of the Household Head",
+        xlab = "Highest Grade Completed of the Household Head", ylab = "Average Total Income")
+        text(
+          x = barplot(average_toinc$TOINC, names.arg = average_toinc$HGC,
+              col = bar_colors, plot = FALSE),
+          y = average_toinc$TOINC + 0.1,  
+          labels = round(average_toinc$TOINC, 2),  
+          pos = 1,
+          col = "black")
+
+# Pie chart for the variable "URBAN"
+one_fies <- data.frame(
+  Category=c("Urban","Rural"),
+  value=c(66137,81580))
+one_fies <- one_fies %>%
+  arrange(desc(Category)) %>%
+  mutate(prop=value/sum(one_fies$value)*100) %>%
+  mutate(ypos=cumsum(prop)-0.5*prop)
+ggplot(one_fies,aes(x="",y=prop,fill=Category))+
+  geom_bar(stat="identity",width=1) + 
+  coord_polar("y",start=0)+
+  theme_void()+
+  geom_text(aes(y=ypos,label=paste0(round(prop,1),"%")),color="white", size=6)+
+  scale_fill_manual(values = c("blue", "orange"))+ 
+  labs(title = "Distribution of Urban/Rural Households")+
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16))
+
+# Bar plot for variable "AGELESS5"
+ageless5_counts <- table(FIES_subset2$AGELESS5)
+barplot(ageless5_counts, col = c("purple", "pink"),
+        main = "Distribution of Families with a Child Aged Less Than 5", xlab = "Age Less Than 5", ylab = "Count",
+        names.arg = c("Without", "With"))
+
+# Bar plot for the variable "HGC"
+ggplot(FIES_subset2, aes(x = factor(HGC), fill=factor(HGC))) +
+  geom_bar() +
+  scale_fill_manual(values = c("red", "blue", "yellow", "green", "purple"))+
+  labs(title = "Educational Attainment of Household Heads",
+       x = "Highest Grade Completed",
+       y = "Number of Households")+
+  geom_text(stat="count",aes(label=..count..),vjust=-0.5)
+
+# Bar plot for the variable "THEALTH"
+ggplot(FIES_subset2, aes(x = THEALTH)) +
+  geom_histogram(binwidth = 100000) +  # Adjust binwidth as needed
+  labs(title = "Distribution of Health Expenditure", x = "Health Expenditure")
+
+```
+
+```{r}
+
+# PROCEEDING TO THE REGRESSION
+# Run the regression
+# Convert HGC to a factor with specified levels
+FIES_subset2$HGC <- factor(FIES_subset2$HGC, levels = c("1", "2", "3", "4", "5"))
+
+# Fit a linear regression model
+model <- lm(THEALTH ~ MEMBERS + SEX + AGE + TOINC + URBAN + AGELESS5 + HGC, data = FIES_subset2)
+
+# Display the summary of the regression
+summary(model)
+```
+Results and Analysis: 
+  The summary function of R shows us the residuals, which is essentially the difference between the observed values and the predicted values. Here, we got - ₱606,157 which is the data point furthest below the regression line, the first quartile (1Q) means 25% of the residuals are less than - ₱5,089, the median middle of the data point is - ₱2,408, the third quartile (3Q) means 25% of the residuals are greater than  ₱287, and lastly, the  ₱1,501,721 is the data point furthest above the regression line. Furthermore, all of the independent variables are significant except for the sex and HGC2. In line with the findings of Zajacova and Lawrence, Monheit and Grafova, and Ogundari and Abdulai, the higher the grade completed of the household head, the higher the household healthcare expenditure is–from 2,404 pesos to 6,366 pesos.
+
+Conclusion:
+  We conclude that there exists a significantly positive relationship between the educational attainment of a household head (HHs) and the household's corresponding expenditure on healthcare. This may indicate that more highly educated HHs may seek out healthcare that is of a higher quality and therefore more expensive. However, we should obviously not jump to the conclusion that higher healthcare costs are desirable. The government should instead focus its efforts on increasing healthcare quality while at the same time lowering its costs.

@@ -1,0 +1,66 @@
+
+---
+name: Lance
+title: "Data Visualization Exercises"
+output: html_document
+---
+
+## Exercise 1: Regional Distribution of a Variable
+
+**Objective:** Explore the distribution of an LFS variable across different regions.
+
+**Task:** Using the `LFS0721-03092022-2015BASED-OPT2-PUF.csv` dataset, create a boxplot to visualize the distribution of an LFS variable (of your choice) across different regions. Be sure to label your axes and give your plot a title. 
+
+**Hints:**
+- Import the necessary library for visualization (e.g., `ggplot2`).
+- Be cautious about the data type of variables.
+- Handle missing values and outliers before generating the plot.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+
+LFS = read.csv("LFS0721-03092022-2015BASED-OPT2-PUF.csv") 
+  
+LFS %>% 
+  filter(!is.na(C05.Age.as.of.Last.Birthday) & C05.Age.as.of.Last.Birthday < 75) %>% 
+  ggplot(.,
+         mapping = aes(x = C05.Age.as.of.Last.Birthday)) + 
+  geom_boxplot() + facet_wrap(. ~ Region) + xlab("Age") 
+```
+
+## Exercise 2: Income Analysis
+
+**Objective:** Analyze the per capita income distribution in urban vs. rural areas.
+
+**Task:** Using the `2021FIESvol1_puf.csv` dataset, create a histogram to visualize the distribution of per capita income for urban and rural areas. Distinguish urban and rural areas using different colors. Label your axes and title your plot.
+
+**Hints:**
+- Ensure that the data type of the 'Urban / Rural' variable is suitable for creating a legend.
+- Optional: Adjust the binwidth parameter in the histogram as per the data distribution.
+- Optional: Take care of any potential outliers or extreme values that might distort the visualization.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+
+FIES = read.csv("2021FIESvol1_puf.csv")
+
+colnames(FIES)
+sapply(FIES,class)
+
+FIES %>% 
+  filter(Per.Capita.Income < 500000) %>% 
+  mutate(., Urban...Rural = ifelse(
+    Urban...Rural == 1,
+    "Urban",
+    "Rural"
+  )) %>% 
+  ggplot(.,
+         mapping = aes(x = Per.Capita.Income,
+                       color = Urban...Rural)) + 
+  geom_histogram(binwidth = 5000) +
+  facet_wrap(. ~ Urban...Rural) +
+  labs(title = "Urban vs Rural Per Capita Income", x = "Per Capita Income", y = "") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
